@@ -38,8 +38,14 @@ export default function Home() {
   async function loadData() {
     try {
       const supabase = createClient()
-      const { data: cats, error: catsErr } = await supabase.from('categories').select('*').order('name')
-      const { data: qs, error: qsErr } = await supabase.from('questions').select('*').order('point_value')
+      const { data: cats, error: catsErr } = await supabase
+        .from('categories')
+        .select('id,name,description,icon,created_at')
+        .order('name')
+      const { data: qs, error: qsErr } = await supabase
+        .from('questions')
+        .select('id,category_id,point_value,question_text,answer_song,answer_artist,clue,sort_order,created_at')
+        .order('point_value')
 
       if (catsErr) throw catsErr
       if (qsErr) throw qsErr
