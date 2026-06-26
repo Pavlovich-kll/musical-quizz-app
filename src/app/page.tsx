@@ -18,6 +18,7 @@ import GameOver from '@/components/GameOver'
 export type GameState = 'setup' | 'select-game' | 'select-teams' | 'playing' | 'question' | 'answered' | 'choose-team' | 'gameover'
 
 const STANDARD_QUESTIONS_PER_GAME = 15
+const SESSION_KEY = 'musical-quiz-session'
 
 interface AnsweredQuestion {
   questionId: string
@@ -33,6 +34,36 @@ interface TeamScore {
   total: number
 }
 
+interface SavedGameState {
+  selectedGame: { id: string; title: string; isCustom: boolean }
+  selectedCustomGame: CustomGame | null
+  teams: string[]
+  currentTeamIdx: number
+  answeredQuestions: AnsweredQuestion[]
+  lastAnswerWrong: boolean
+}
+
+function saveSession(state: SavedGameState) {
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(state))
+  } catch {}
+}
+
+function loadSession(): SavedGameState | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+function clearSession() {
+  try {
+    localStorage.removeItem(SESSION_KEY)
+  } catch {}
+}
+
 export default function Home() {
   const [gameState, setGameState] = useState<GameState>('setup')
   const [categories, setCategories] = useState<Category[]>([])
@@ -40,10 +71,10 @@ export default function Home() {
   const [questionsByCategory, setQuestionsByCategory] = useState<Record<string, Question[]>>({})
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null)
   const [answeredQuestions, setAnsweredQuestions] = useState<AnsweredQuestion[]>([])
+  const [dataLoaded, setDataLoaded] = useState(false)
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selectedQuestions, setSelectedQuestions] = useState<Question[]>([])
   const [selectedGame, setSelectedGame] = useState<GameDef | null>(null)
   const [selectedCustomGame, setSelectedCustomGame] = useState<CustomGame | null>(null)
   const [teams, setTeams] = useState<string[]>([])
@@ -120,6 +151,52 @@ export default function Home() {
     setCustomGames(loadCustomGames())
   }, [])
 
+  useEffect(() => {
+    if (!dataLoaded) return
+    const saved = loadSession()
+    if (saved && saved.teams.length > 0) {
+      const customGame = saved.selectedCustomGame
+      setSelectedGame({
+        id: saved.selectedGame.id,
+        title: saved.selectedGame.title,
+        description: '',
+        categoryIds: customGame
+          ? customGame.categories.map(c => c.id)
+          : [],
+        isCustom: saved.selectedGame.isCustom,
+      })
+      setSelectedCustomGame(customGame)
+      setTeams(saved.teams)
+      setCurrentTeamIdx(saved.currentTeamIdx)
+      setAnsweredQuestions(saved.answeredQuestions)
+      setLastAnswerWrong(saved.lastAnswerWrong)
+      if (saved.answeredQuestions.length >= (saved.selectedGame.isCustom
+        ? (customGame?.questions.length ?? 0)
+        : STANDARD_QUESTIONS_PER_GAME
+      )) {
+        setGameState('gameover')
+      } else {
+        setGameState('playing')
+      }
+    }
+  }, [dataLoaded])
+
+  useEffect(() => {
+    if (!dataLoaded) return
+    if (teams.length === 0 || !selectedGame) {
+      clearSession()
+      return
+    }
+    saveSession({
+      selectedGame: { id: selectedGame.id, title: selectedGame.title, isCustom: !!selectedGame.isCustom },
+      selectedCustomGame,
+      teams,
+      currentTeamIdx,
+      answeredQuestions,
+      lastAnswerWrong,
+    })
+  }, [dataLoaded, teams, selectedGame, selectedCustomGame, currentTeamIdx, answeredQuestions, lastAnswerWrong])
+
   async function loadData() {
     try {
       const supabase = createClient()
@@ -164,6 +241,7 @@ export default function Home() {
       setLoading(false)
     } finally {
       setLoading(false)
+      setDataLoaded(true)
     }
   }
 
@@ -183,7 +261,6 @@ export default function Home() {
       isCorrect,
       teamName,
     }])
-    setSelectedQuestions(prev => [...prev, currentQuestion!])
     setLastAnswerWrong(!isCorrect)
     setGameState('answered')
   }
@@ -219,7 +296,6 @@ export default function Home() {
     setTeams(teamNames)
     setCurrentTeamIdx(firstTeamIdx)
     setAnsweredQuestions([])
-    setSelectedQuestions([])
     setCurrentQuestion(null)
     setLastAnswerWrong(false)
     setGameState('playing')
@@ -231,7 +307,6 @@ export default function Home() {
 
   function restartGame() {
     setAnsweredQuestions([])
-    setSelectedQuestions([])
     setCurrentQuestion(null)
     setTeams([])
     setSelectedGame(null)
@@ -239,7 +314,10 @@ export default function Home() {
     setCurrentTeamIdx(0)
     setLastAnswerWrong(false)
     setGameState('setup')
+    clearSession()
   }
+
+  const showResetButton = teams.length > 0 && gameState !== 'setup' && gameState !== 'select-game' && gameState !== 'select-teams'
 
   if (loading) {
     return (
@@ -277,7 +355,17 @@ export default function Home() {
           <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
             🎵 Музыкальный квиз
           </h1>
-          <a href="/admin" className="text-xs text-white/30 hover:text-white/60 transition-colors">Админ</a>
+          <div className="flex items-center gap-3">
+            {showResetButton && (
+              <button
+                onClick={restartGame}
+                className="text-xs px-3 py-1.5 bg-red-600/40 hover:bg-red-600/60 rounded-lg transition-all"
+              >
+                Сбросить игру
+              </button>
+            )}
+            <a href="/admin" className="text-xs text-white/30 hover:text-white/60 transition-colors">Админ</a>
+          </div>
         </div>
         {teams.length > 0 && gameState !== 'setup' && gameState !== 'select-game' && gameState !== 'select-teams' && (
           <div className="text-center text-sm mt-1">
