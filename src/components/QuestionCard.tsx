@@ -102,16 +102,17 @@ export default function QuestionCard({ question, categories, onAnswer, questions
         </div>
 
         {question.media_url && youtubeId && (
-          <div className="mb-6 rounded-xl overflow-hidden">
+          <div className="mb-6 rounded-xl overflow-hidden relative bg-gray-900">
             <iframe
               key={question.id}
               width="100%"
               height="200"
-              src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1`}
+              src={`https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&controls=1&modestbranding=1&rel=0&showinfo=0`}
               allow="autoplay; encrypted-media"
               allowFullScreen
               className="rounded-xl"
             />
+            <div className="absolute inset-0 bg-gradient-to-b from-gray-900/90 via-gray-900/50 to-transparent pointer-events-none rounded-xl" />
           </div>
         )}
 
