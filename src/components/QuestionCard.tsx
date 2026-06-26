@@ -81,6 +81,21 @@ export default function QuestionCard({ question, categories, onAnswer, questions
           )}
         </div>
 
+        {question.media_url && (
+          <div className="mb-6 p-4 bg-indigo-900/30 border border-indigo-500/30 rounded-xl text-center">
+            <audio
+              key={question.id}
+              src={question.media_url}
+              controls
+              autoPlay
+              className="w-full max-w-xs mx-auto"
+              onError={() => console.error('Audio load error:', question.media_url)}
+            >
+              Ваш браузер не поддерживает аудио
+            </audio>
+          </div>
+        )}
+
         {!showAnswer ? (
           <button
             onClick={handleReveal}

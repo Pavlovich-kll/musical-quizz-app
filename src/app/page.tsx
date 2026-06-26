@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Category, Question } from '@/lib/supabase/database.types'
+import { getAudioUrl } from '@/lib/audio-mapping'
 import GameBoard from '@/components/GameBoard'
 import QuestionCard from '@/components/QuestionCard'
 import PlayerSetup from '@/components/PlayerSetup'
@@ -52,9 +53,13 @@ export default function Home() {
 
       if (cats) setCategories(cats)
       if (qs) {
-        setQuestions(qs)
+        const qsWithMedia = qs.map(q => ({
+          ...q,
+          media_url: getAudioUrl(q.answer_song, q.answer_artist)
+        }))
+        setQuestions(qsWithMedia)
         const grouped: Record<string, Question[]> = {}
-        for (const q of qs) {
+        for (const q of qsWithMedia) {
           if (!grouped[q.category_id]) grouped[q.category_id] = []
           grouped[q.category_id].push(q)
         }

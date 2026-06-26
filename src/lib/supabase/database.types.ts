@@ -16,6 +16,7 @@ export interface Question {
   clue: string | null
   sort_order: number
   created_at: string
+  media_url: string | null
 }
 
 export interface GameSession {
