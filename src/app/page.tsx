@@ -40,7 +40,7 @@ export default function Home() {
   const [questionsByCategory, setQuestionsByCategory] = useState<Record<string, Question[]>>({})
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null)
   const [answeredQuestions, setAnsweredQuestions] = useState<AnsweredQuestion[]>([])
-  const [playerName, setPlayerName] = useState('')
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedQuestions, setSelectedQuestions] = useState<Question[]>([])
@@ -225,8 +225,7 @@ export default function Home() {
     setGameState('playing')
   }
 
-  function handlePlayerSetup(name: string) {
-    setPlayerName(name)
+  function handlePlayerSetup() {
     setGameState('select-game')
   }
 
@@ -240,7 +239,6 @@ export default function Home() {
     setCurrentTeamIdx(0)
     setLastAnswerWrong(false)
     setGameState('setup')
-    setPlayerName('')
   }
 
   if (loading) {

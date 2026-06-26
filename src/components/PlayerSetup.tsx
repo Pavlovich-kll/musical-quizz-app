@@ -1,10 +1,9 @@
 'use client'
 
-import { useState } from 'react'
 import type { Category } from '@/lib/supabase/database.types'
 
 interface Props {
-  onStart: (name: string) => void
+  onStart: () => void
   categories: Category[]
 }
 
@@ -22,8 +21,6 @@ const CATEGORY_COLORS = [
 ]
 
 export default function PlayerSetup({ onStart, categories }: Props) {
-  const [name, setName] = useState('')
-
   return (
     <div className="max-w-4xl mx-auto animate-fadeIn">
       <div className="text-center mb-8">
@@ -45,18 +42,9 @@ export default function PlayerSetup({ onStart, categories }: Props) {
 
       <div className="max-w-md mx-auto bg-white/5 border border-white/10 rounded-2xl p-6 text-center">
         <h3 className="text-lg font-semibold mb-4">Начать игру</h3>
-        <input
-          type="text"
-          placeholder="Введите ваше имя"
-          value={name}
-          onChange={e => setName(e.target.value)}
-          className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 mb-4 focus:outline-none focus:border-indigo-500"
-          onKeyDown={e => e.key === 'Enter' && name.trim() && onStart(name.trim())}
-        />
         <button
-          onClick={() => name.trim() && onStart(name.trim())}
-          disabled={!name.trim()}
-          className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:from-indigo-500 hover:to-purple-500 transition-all"
+          onClick={onStart}
+          className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl font-semibold hover:from-indigo-500 hover:to-purple-500 transition-all"
         >
           Начать квиз!
         </button>
