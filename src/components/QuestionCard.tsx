@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import type { Category, Question } from '@/lib/supabase/database.types'
 
 interface Props {
@@ -11,9 +11,31 @@ interface Props {
   currentTeam?: string
 }
 
+function getYoutubeId(url: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
+    /^([a-zA-Z0-9_-]{11})$/,
+  ]
+  for (const p of patterns) {
+    const m = url.match(p)
+    if (m) return m[1]
+  }
+  return null
+}
+
+function isYoutubeUrl(url: string): boolean {
+  return /youtube\.com|youtu\.be/.test(url)
+}
+
 export default function QuestionCard({ question, categories, onAnswer, questionsLeft, currentTeam }: Props) {
   const [showAnswer, setShowAnswer] = useState(false)
   const category = categories.find(c => c.id === question.category_id)
+
+  const youtubeId = useMemo(() => {
+    if (!question.media_url) return null
+    if (!isYoutubeUrl(question.media_url)) return null
+    return getYoutubeId(question.media_url)
+  }, [question.media_url])
 
   function handleReveal() {
     setShowAnswer(true)
@@ -79,7 +101,21 @@ export default function QuestionCard({ question, categories, onAnswer, questions
           )}
         </div>
 
-        {question.media_url && (
+        {question.media_url && youtubeId && (
+          <div className="mb-6 rounded-xl overflow-hidden">
+            <iframe
+              key={question.id}
+              width="100%"
+              height="200"
+              src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1`}
+              allow="autoplay; encrypted-media"
+              allowFullScreen
+              className="rounded-xl"
+            />
+          </div>
+        )}
+
+        {question.media_url && !youtubeId && (
           <div className="mb-6 p-4 bg-indigo-900/30 border border-indigo-500/30 rounded-xl text-center">
             <audio
               key={question.id}
