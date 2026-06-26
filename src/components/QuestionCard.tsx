@@ -107,7 +107,7 @@ export default function QuestionCard({ question, categories, onAnswer, questions
               key={question.id}
               width="100%"
               height="200"
-              src={`https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&controls=1&modestbranding=1&rel=0&showinfo=0`}
+              src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&controls=1&modestbranding=1&rel=0&origin=https://musical-quizz-app.vercel.app`}
               allow="autoplay; encrypted-media"
               allowFullScreen
               className="rounded-xl"
