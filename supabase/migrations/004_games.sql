@@ -1,0 +1,53 @@
+CREATE TABLE IF NOT EXISTS games (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS game_categories (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  game_id UUID REFERENCES games(id) ON DELETE CASCADE,
+  category_id UUID REFERENCES categories(id) ON DELETE CASCADE,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(game_id, category_id)
+);
+
+ALTER TABLE game_sessions ADD COLUMN IF NOT EXISTS game_id UUID REFERENCES games(id);
+ALTER TABLE game_sessions ADD COLUMN IF NOT EXISTS teams JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE game_sessions ADD COLUMN IF NOT EXISTS team_scores JSONB DEFAULT '{}'::jsonb;
+
+ALTER TABLE answers ADD COLUMN IF NOT EXISTS team_name TEXT;
+
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS youtube_url TEXT;
+
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS game_id UUID REFERENCES games(id);
+
+ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE games ENABLE ROW LEVEL SECURITY;
+ALTER TABLE game_categories ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow public read games" ON games FOR SELECT USING (true);
+CREATE POLICY "Allow public read game_categories" ON game_categories FOR SELECT USING (true);
+
+-- Games
+INSERT INTO games (id, title, description) VALUES
+  ('g0000001-0000-0000-0000-000000000001', 'Классика', 'Классические категории: переводы, потерянные слова, ла-ла-ла, проблемы с текстом и Янсеп'),
+  ('g0000002-0000-0000-0000-000000000002', 'Зажигай!', 'Зажигательные категории: на-на-на, каверы, вечеринка, миксы и необычные песни');
+
+-- Game 1 categories
+INSERT INTO game_categories (game_id, category_id, sort_order) VALUES
+  ('g0000001-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 1),
+  ('g0000001-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 2),
+  ('g0000001-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000003', 3),
+  ('g0000001-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000004', 4),
+  ('g0000001-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000005', 5);
+
+-- Game 2 categories
+INSERT INTO game_categories (game_id, category_id, sort_order) VALUES
+  ('g0000002-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000006', 1),
+  ('g0000002-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000007', 2),
+  ('g0000002-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000008', 3),
+  ('g0000002-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000009', 4),
+  ('g0000002-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-00000000000a', 5);

@@ -4,12 +4,18 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Category, Question } from '@/lib/supabase/database.types'
 import { getAudioUrl } from '@/lib/audio-mapping'
+import { GAMES } from '@/lib/games-data'
+import type { GameDef } from '@/lib/games-data'
+import { loadCustomGames } from '@/lib/custom-games'
+import type { CustomGame } from '@/lib/custom-games'
 import GameBoard from '@/components/GameBoard'
 import QuestionCard from '@/components/QuestionCard'
 import PlayerSetup from '@/components/PlayerSetup'
+import GameSelector from '@/components/GameSelector'
+import TeamSetup from '@/components/TeamSetup'
 import GameOver from '@/components/GameOver'
 
-export type GameState = 'setup' | 'playing' | 'question' | 'answered' | 'gameover'
+export type GameState = 'setup' | 'select-game' | 'select-teams' | 'playing' | 'question' | 'answered' | 'gameover'
 
 const QUESTIONS_PER_GAME = 15
 
@@ -17,6 +23,14 @@ interface AnsweredQuestion {
   questionId: string
   points: number
   isCorrect: boolean
+  teamName: string
+}
+
+interface TeamScore {
+  name: string
+  score: number
+  correct: number
+  total: number
 }
 
 export default function Home() {
@@ -26,14 +40,44 @@ export default function Home() {
   const [questionsByCategory, setQuestionsByCategory] = useState<Record<string, Question[]>>({})
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null)
   const [answeredQuestions, setAnsweredQuestions] = useState<AnsweredQuestion[]>([])
-  const [score, setScore] = useState(0)
   const [playerName, setPlayerName] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedQuestions, setSelectedQuestions] = useState<Question[]>([])
+  const [selectedGame, setSelectedGame] = useState<GameDef | null>(null)
+  const [teams, setTeams] = useState<string[]>([])
+  const [currentTeamIdx, setCurrentTeamIdx] = useState(0)
+
+  const [customGames, setCustomGames] = useState<CustomGame[]>([])
+
+  const availableGames: GameDef[] = [
+    ...GAMES,
+    ...customGames.map(cg => ({
+      id: cg.id,
+      title: cg.title,
+      description: cg.description,
+      categoryIds: cg.categories.map(c => c.id),
+      isCustom: true as const,
+    })),
+  ]
+
+  const filteredCategories = selectedGame
+    ? categories.filter(c => selectedGame.categoryIds.includes(c.id))
+    : categories
+
+  const teamScores: TeamScore[] = teams.map(name => {
+    const teamAnswers = answeredQuestions.filter(a => a.teamName === name)
+    return {
+      name,
+      score: teamAnswers.reduce((s, a) => s + a.points, 0),
+      correct: teamAnswers.filter(a => a.isCorrect).length,
+      total: teamAnswers.length,
+    }
+  })
 
   useEffect(() => {
     loadData()
+    setCustomGames(loadCustomGames())
   }, [])
 
   async function loadData() {
@@ -55,7 +99,7 @@ export default function Home() {
       if (qs) {
         const qsWithMedia = qs.map(q => ({
           ...q,
-          media_url: getAudioUrl(q.answer_song, q.answer_artist)
+          media_url: getAudioUrl(q.answer_song, q.answer_artist),
         }))
         setQuestions(qsWithMedia)
         const grouped: Record<string, Question[]> = {}
@@ -92,19 +136,20 @@ export default function Home() {
   function handleAnswer(isCorrect: boolean) {
     if (!currentQuestion) return
     const points = isCorrect ? currentQuestion.point_value : 0
-    const newScore = score + points
-    setScore(newScore)
-    setAnsweredQuestions([...answeredQuestions, {
+    const teamName = teams[currentTeamIdx]
+    setAnsweredQuestions(prev => [...prev, {
       questionId: currentQuestion.id,
       points,
       isCorrect,
+      teamName,
     }])
-    setSelectedQuestions([...selectedQuestions, currentQuestion])
+    setSelectedQuestions(prev => [...prev, currentQuestion!])
     setGameState('answered')
   }
 
   function nextQuestion() {
     setCurrentQuestion(null)
+    setCurrentTeamIdx(prev => (prev + 1) % teams.length)
     if (answeredQuestions.length >= QUESTIONS_PER_GAME) {
       setGameState('gameover')
     } else {
@@ -112,20 +157,32 @@ export default function Home() {
     }
   }
 
-  function startGame(name: string) {
-    setPlayerName(name)
-    setScore(0)
+  function handleGameSelect(game: GameDef) {
+    setSelectedGame(game)
+    setGameState('select-teams')
+  }
+
+  function handleTeamStart(teamNames: string[]) {
+    setTeams(teamNames)
     setAnsweredQuestions([])
     setSelectedQuestions([])
     setCurrentQuestion(null)
+    setCurrentTeamIdx(0)
     setGameState('playing')
   }
 
+  function handlePlayerSetup(name: string) {
+    setPlayerName(name)
+    setGameState('select-game')
+  }
+
   function restartGame() {
-    setScore(0)
     setAnsweredQuestions([])
     setSelectedQuestions([])
     setCurrentQuestion(null)
+    setTeams([])
+    setSelectedGame(null)
+    setCurrentTeamIdx(0)
     setGameState('setup')
     setPlayerName('')
   }
@@ -162,14 +219,28 @@ export default function Home() {
   return (
     <div className="flex flex-col min-h-screen">
       <header className="py-4 px-6 border-b border-white/10">
-        <h1 className="text-2xl font-bold text-center bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-          🎵 Музыкальный квиз
-        </h1>
-        {playerName && gameState !== 'setup' && (
-          <div className="text-center text-sm text-white/60 mt-1">
-            Игрок: {playerName} | Счёт: <span className="text-yellow-400 font-bold">{score}</span>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+            🎵 Музыкальный квиз
+          </h1>
+          <a href="/admin" className="text-xs text-white/30 hover:text-white/60 transition-colors">Админ</a>
+        </div>
+        {teams.length > 0 && gameState !== 'setup' && gameState !== 'select-game' && gameState !== 'select-teams' && (
+          <div className="text-center text-sm mt-1">
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              {teamScores.map(ts => (
+                <span key={ts.name} className="text-white/80">
+                  {ts.name}: <span className="text-yellow-400 font-bold">{ts.score}</span>
+                </span>
+              ))}
+              {gameState === 'playing' && (
+                <span className="text-white/40">| Ход: <span className="text-indigo-300 font-semibold">{teams[currentTeamIdx]}</span></span>
+              )}
+            </div>
             {gameState === 'playing' && (
-              <span className="ml-3">| Вопросов: {answeredQuestions.length}/{QUESTIONS_PER_GAME}</span>
+              <div className="text-xs text-white/40 mt-1">
+                Вопросов: {answeredQuestions.length}/{QUESTIONS_PER_GAME}
+              </div>
             )}
           </div>
         )}
@@ -177,24 +248,35 @@ export default function Home() {
 
       <main className="flex-1 p-4 md:p-6">
         {gameState === 'setup' && (
-          <PlayerSetup onStart={startGame} categories={categories} />
+          <PlayerSetup onStart={handlePlayerSetup} categories={filteredCategories} />
+        )}
+
+        {gameState === 'select-game' && (
+          <GameSelector games={availableGames} onSelect={handleGameSelect} />
+        )}
+
+        {gameState === 'select-teams' && (
+          <TeamSetup onStart={handleTeamStart} />
         )}
 
         {gameState === 'playing' && (
           <GameBoard
-            categories={categories}
+            categories={filteredCategories}
             questionsByCategory={questionsByCategory}
             answeredQuestions={answeredQuestions.map(a => a.questionId)}
             onSelectQuestion={selectQuestion}
+            currentTeam={teams[currentTeamIdx]}
+            teamScores={teamScores}
           />
         )}
 
         {gameState === 'question' && currentQuestion && (
           <QuestionCard
             question={currentQuestion}
-            categories={categories}
+            categories={filteredCategories}
             onAnswer={handleAnswer}
             questionsLeft={QUESTIONS_PER_GAME - answeredQuestions.length - 1}
+            currentTeam={teams[currentTeamIdx]}
           />
         )}
 
@@ -209,6 +291,9 @@ export default function Home() {
               <h2 className="text-2xl font-bold mb-2">
                 {answeredQuestions[answeredQuestions.length - 1]?.isCorrect ? 'Верно!' : 'Неверно'}
               </h2>
+              <p className="text-lg text-white/70 mb-1">
+                Команда: <span className="font-semibold text-indigo-300">{answeredQuestions[answeredQuestions.length - 1]?.teamName}</span>
+              </p>
               <p className="text-xl text-white/80 mb-2">
                 {currentQuestion.answer_song}
               </p>
@@ -232,8 +317,7 @@ export default function Home() {
 
         {gameState === 'gameover' && (
           <GameOver
-            score={score}
-            playerName={playerName}
+            teamScores={teamScores}
             answeredQuestions={answeredQuestions}
             onRestart={restartGame}
           />

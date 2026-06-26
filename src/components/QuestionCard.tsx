@@ -8,18 +8,15 @@ interface Props {
   categories: Category[]
   onAnswer: (isCorrect: boolean) => void
   questionsLeft: number
+  currentTeam?: string
 }
 
-export default function QuestionCard({ question, categories, onAnswer, questionsLeft }: Props) {
+export default function QuestionCard({ question, categories, onAnswer, questionsLeft, currentTeam }: Props) {
   const [showAnswer, setShowAnswer] = useState(false)
   const category = categories.find(c => c.id === question.category_id)
 
   function handleReveal() {
     setShowAnswer(true)
-  }
-
-  function handleAnswer(correct: boolean) {
-    onAnswer(correct)
   }
 
   return (
@@ -32,7 +29,12 @@ export default function QuestionCard({ question, categories, onAnswer, questions
           <span className="px-3 py-1 bg-yellow-600/50 rounded-full text-sm font-bold">
             {question.point_value} очков
           </span>
-          <span className="text-xs text-white/40 ml-auto">
+          {currentTeam && (
+            <span className="px-3 py-1 bg-indigo-600/30 rounded-full text-xs ml-auto">
+              Ход: {currentTeam}
+            </span>
+          )}
+          <span className="text-xs text-white/40 ml-2">
             Осталось: {questionsLeft}
           </span>
         </div>
@@ -46,22 +48,18 @@ export default function QuestionCard({ question, categories, onAnswer, questions
             </div>
           ) : (
             <div className="text-center">
-              {question.category_id && (
-                <>
-                  <p className="text-sm text-white/50 mb-2">
-                    {category?.name === 'Ё май онли ван' && 'Какая песня скрывается за этим названием?'}
-                    {category?.name === 'Потеряли слова' && 'Вспомни песню по контексту'}
-                    {category?.name === 'Я сижу на камушке ла-ла-ла' && 'В какой песне есть "ла-ла-ла"?'}
-                    {category?.name === 'Янсеп' && 'Угадай песню'}
-                    {category?.name === 'Сей на-на-на' && 'В какой песне есть "на-на-на"?'}
-                    {category?.name === 'ООО «Мы не придумали»' && 'Угадай оригинальную песню'}
-                    {category?.name === 'Еврибади лавс самбади' && 'Что за песня для вечеринки?'}
-                    {category?.name === 'Соединились наши орбиты/планеты' && 'Из каких двух песен этот микс?'}
-                    {category?.name === 'Чай не утопнем' && 'Что за необычная песня?'}
-                    {!category?.name && 'Что за песня?'}
-                  </p>
-                </>
-              )}
+              <p className="text-sm text-white/50 mb-2">
+                {category?.name === 'Ё май онли ван' && 'Какая песня скрывается за этим названием?'}
+                {category?.name === 'Потеряли слова' && 'Вспомни песню по контексту'}
+                {category?.name === 'Я сижу на камушке ла-ла-ла' && 'В какой песне есть "ла-ла-ла"?'}
+                {category?.name === 'Янсеп' && 'Угадай песню'}
+                {category?.name === 'Сей на-на-на' && 'В какой песне есть "на-на-на"?'}
+                {category?.name === 'ООО «Мы не придумали»' && 'Угадай оригинальную песню'}
+                {category?.name === 'Еврибади лавс самбади' && 'Что за песня для вечеринки?'}
+                {category?.name === 'Соединились наши орбиты/планеты' && 'Из каких двух песен этот микс?'}
+                {category?.name === 'Чай не утопнем' && 'Что за необычная песня?'}
+                {!category?.name && 'Что за песня?'}
+              </p>
               <div className="text-6xl mb-4">
                 {category?.name === 'Ё май онли ван' && '🎤'}
                 {category?.name === 'Потеряли слова' && '📝'}
@@ -113,13 +111,13 @@ export default function QuestionCard({ question, categories, onAnswer, questions
 
             <div className="flex gap-3">
               <button
-                onClick={() => handleAnswer(true)}
+                onClick={() => onAnswer(true)}
                 className="flex-1 py-3 bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl font-semibold hover:from-green-500 hover:to-emerald-500 transition-all"
               >
-                ✅ Угадал(а)
+                ✅ {currentTeam} угадал(а)
               </button>
               <button
-                onClick={() => handleAnswer(false)}
+                onClick={() => onAnswer(false)}
                 className="flex-1 py-3 bg-gradient-to-r from-red-600 to-rose-600 rounded-xl font-semibold hover:from-red-500 hover:to-rose-500 transition-all"
               >
                 ❌ Не угадал(а)
