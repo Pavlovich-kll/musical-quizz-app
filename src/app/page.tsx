@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Category, Question } from '@/lib/supabase/database.types'
 import { getAudioUrl } from '@/lib/audio-mapping'
@@ -15,7 +15,7 @@ import GameSelector from '@/components/GameSelector'
 import TeamSetup from '@/components/TeamSetup'
 import GameOver from '@/components/GameOver'
 
-export type GameState = 'setup' | 'select-game' | 'select-teams' | 'playing' | 'question' | 'answered' | 'gameover'
+export type GameState = 'setup' | 'select-game' | 'select-teams' | 'playing' | 'question' | 'answered' | 'choose-team' | 'gameover'
 
 const QUESTIONS_PER_GAME = 15
 
@@ -47,6 +47,7 @@ export default function Home() {
   const [selectedGame, setSelectedGame] = useState<GameDef | null>(null)
   const [teams, setTeams] = useState<string[]>([])
   const [currentTeamIdx, setCurrentTeamIdx] = useState(0)
+  const [lastAnswerWrong, setLastAnswerWrong] = useState(false)
 
   const [customGames, setCustomGames] = useState<CustomGame[]>([])
 
@@ -64,6 +65,8 @@ export default function Home() {
   const filteredCategories = selectedGame
     ? categories.filter(c => selectedGame.categoryIds.includes(c.id))
     : categories
+
+  const isGameOver = answeredQuestions.length >= QUESTIONS_PER_GAME
 
   const teamScores: TeamScore[] = teams.map(name => {
     const teamAnswers = answeredQuestions.filter(a => a.teamName === name)
@@ -144,17 +147,24 @@ export default function Home() {
       teamName,
     }])
     setSelectedQuestions(prev => [...prev, currentQuestion!])
+    setLastAnswerWrong(!isCorrect)
     setGameState('answered')
   }
 
-  function nextQuestion() {
+  function goToBoard() {
     setCurrentQuestion(null)
-    setCurrentTeamIdx(prev => (prev + 1) % teams.length)
-    if (answeredQuestions.length >= QUESTIONS_PER_GAME) {
+    if (isGameOver) {
       setGameState('gameover')
+    } else if (lastAnswerWrong) {
+      setGameState('choose-team')
     } else {
       setGameState('playing')
     }
+  }
+
+  function chooseTeam(idx: number) {
+    setCurrentTeamIdx(idx)
+    setGameState('playing')
   }
 
   function handleGameSelect(game: GameDef) {
@@ -162,12 +172,13 @@ export default function Home() {
     setGameState('select-teams')
   }
 
-  function handleTeamStart(teamNames: string[]) {
+  function handleTeamStart(teamNames: string[], firstTeamIdx: number) {
     setTeams(teamNames)
+    setCurrentTeamIdx(firstTeamIdx)
     setAnsweredQuestions([])
     setSelectedQuestions([])
     setCurrentQuestion(null)
-    setCurrentTeamIdx(0)
+    setLastAnswerWrong(false)
     setGameState('playing')
   }
 
@@ -183,6 +194,7 @@ export default function Home() {
     setTeams([])
     setSelectedGame(null)
     setCurrentTeamIdx(0)
+    setLastAnswerWrong(false)
     setGameState('setup')
     setPlayerName('')
   }
@@ -233,7 +245,7 @@ export default function Home() {
                   {ts.name}: <span className="text-yellow-400 font-bold">{ts.score}</span>
                 </span>
               ))}
-              {gameState === 'playing' && (
+              {(gameState === 'playing' || gameState === 'question') && (
                 <span className="text-white/40">| Ход: <span className="text-indigo-300 font-semibold">{teams[currentTeamIdx]}</span></span>
               )}
             </div>
@@ -270,6 +282,31 @@ export default function Home() {
           />
         )}
 
+        {gameState === 'choose-team' && (
+          <div className="max-w-md mx-auto mt-8 animate-fadeIn">
+            <h2 className="text-xl font-bold text-center mb-2">Выберите следующую команду</h2>
+            <p className="text-white/60 text-center mb-6">
+              Команда <span className="text-red-400 font-semibold">{teams[currentTeamIdx]}</span> не ответила. Кто хочет попробовать?
+            </p>
+            <div className="grid gap-3">
+              {teams.map((name, i) => (
+                <button
+                  key={name}
+                  onClick={() => chooseTeam(i)}
+                  disabled={i === currentTeamIdx}
+                  className={`p-4 rounded-xl text-left font-semibold transition-all ${
+                    i === currentTeamIdx
+                      ? 'bg-white/5 border border-white/10 text-white/30 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-indigo-600/40 to-purple-600/40 border border-indigo-500/30 hover:from-indigo-600/60 hover:to-purple-600/60'
+                  }`}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {gameState === 'question' && currentQuestion && (
           <QuestionCard
             question={currentQuestion}
@@ -301,15 +338,24 @@ export default function Home() {
                 {currentQuestion.answer_artist}
               </p>
               {answeredQuestions[answeredQuestions.length - 1]?.isCorrect && (
-                <p className="text-yellow-400 text-lg font-semibold">
+                <p className="text-yellow-400 text-lg font-semibold mb-2">
                   +{currentQuestion.point_value} очков
                 </p>
               )}
+              {answeredQuestions[answeredQuestions.length - 1]?.isCorrect ? (
+                <p className="text-indigo-300 text-sm mb-4">
+                  {teams[currentTeamIdx]} продолжает игру! Выберите следующий вопрос.
+                </p>
+              ) : (
+                <p className="text-white/50 text-sm mb-4">
+                  Нужно выбрать другую команду для следующего хода.
+                </p>
+              )}
               <button
-                onClick={nextQuestion}
-                className="mt-6 px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl font-semibold hover:from-indigo-500 hover:to-purple-500 transition-all"
+                onClick={goToBoard}
+                className="mt-2 px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl font-semibold hover:from-indigo-500 hover:to-purple-500 transition-all"
               >
-                {answeredQuestions.length >= QUESTIONS_PER_GAME ? 'Посмотреть результаты' : 'Следующий вопрос →'}
+                {isGameOver ? 'Посмотреть результаты' : 'К выбору вопросов →'}
               </button>
             </div>
           </div>
