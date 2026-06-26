@@ -41,7 +41,6 @@ export default function PlayerSetup({ onStart, categories }: Props) {
       </div>
 
       <div className="max-w-md mx-auto bg-white/5 border border-white/10 rounded-2xl p-6 text-center">
-        <h3 className="text-lg font-semibold mb-4">Начать игру</h3>
         <button
           onClick={onStart}
           className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl font-semibold hover:from-indigo-500 hover:to-purple-500 transition-all"
