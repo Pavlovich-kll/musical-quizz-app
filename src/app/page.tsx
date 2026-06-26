@@ -17,7 +17,7 @@ import GameOver from '@/components/GameOver'
 
 export type GameState = 'setup' | 'select-game' | 'select-teams' | 'playing' | 'question' | 'answered' | 'choose-team' | 'gameover'
 
-const QUESTIONS_PER_GAME = 15
+const STANDARD_QUESTIONS_PER_GAME = 15
 
 interface AnsweredQuestion {
   questionId: string
@@ -45,6 +45,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
   const [selectedQuestions, setSelectedQuestions] = useState<Question[]>([])
   const [selectedGame, setSelectedGame] = useState<GameDef | null>(null)
+  const [selectedCustomGame, setSelectedCustomGame] = useState<CustomGame | null>(null)
   const [teams, setTeams] = useState<string[]>([])
   const [currentTeamIdx, setCurrentTeamIdx] = useState(0)
   const [lastAnswerWrong, setLastAnswerWrong] = useState(false)
@@ -62,11 +63,47 @@ export default function Home() {
     })),
   ]
 
+  const questionsPerGame = selectedGame?.isCustom
+    ? selectedCustomGame?.questions.length ?? 0
+    : STANDARD_QUESTIONS_PER_GAME
+
   const filteredCategories = selectedGame
-    ? categories.filter(c => selectedGame.categoryIds.includes(c.id))
+    ? selectedGame.isCustom
+      ? (selectedCustomGame?.categories.map(c => ({
+          id: c.id,
+          name: c.name,
+          description: c.description,
+          icon: c.icon || '🎵',
+          created_at: selectedCustomGame.createdAt,
+        })) ?? [])
+      : categories.filter(c => selectedGame.categoryIds.includes(c.id))
     : categories
 
-  const isGameOver = answeredQuestions.length >= QUESTIONS_PER_GAME
+  const customQuestionsByCategory: Record<string, Question[]> = selectedCustomGame
+    ? (() => {
+        const grouped: Record<string, Question[]> = {}
+        for (const cq of selectedCustomGame.questions) {
+          if (!grouped[cq.categoryId]) grouped[cq.categoryId] = []
+          grouped[cq.categoryId].push({
+            id: cq.id,
+            category_id: cq.categoryId,
+            point_value: cq.pointValue,
+            question_text: cq.questionText || null,
+            answer_song: cq.answerSong,
+            answer_artist: cq.answerArtist,
+            clue: null,
+            sort_order: 0,
+            created_at: selectedCustomGame.createdAt,
+            media_url: cq.youtubeUrl || null,
+          })
+        }
+        return grouped
+      })()
+    : {}
+
+  const activeQuestionsByCategory = selectedGame?.isCustom ? customQuestionsByCategory : questionsByCategory
+
+  const isGameOver = answeredQuestions.length >= questionsPerGame
 
   const teamScores: TeamScore[] = teams.map(name => {
     const teamAnswers = answeredQuestions.filter(a => a.teamName === name)
@@ -169,6 +206,12 @@ export default function Home() {
 
   function handleGameSelect(game: GameDef) {
     setSelectedGame(game)
+    if (game.isCustom) {
+      const cg = customGames.find(c => c.id === game.id)
+      setSelectedCustomGame(cg ?? null)
+    } else {
+      setSelectedCustomGame(null)
+    }
     setGameState('select-teams')
   }
 
@@ -193,6 +236,7 @@ export default function Home() {
     setCurrentQuestion(null)
     setTeams([])
     setSelectedGame(null)
+    setSelectedCustomGame(null)
     setCurrentTeamIdx(0)
     setLastAnswerWrong(false)
     setGameState('setup')
@@ -251,7 +295,7 @@ export default function Home() {
             </div>
             {gameState === 'playing' && (
               <div className="text-xs text-white/40 mt-1">
-                Вопросов: {answeredQuestions.length}/{QUESTIONS_PER_GAME}
+                Вопросов: {answeredQuestions.length}/{questionsPerGame}
               </div>
             )}
           </div>
@@ -274,7 +318,7 @@ export default function Home() {
         {gameState === 'playing' && (
           <GameBoard
             categories={filteredCategories}
-            questionsByCategory={questionsByCategory}
+            questionsByCategory={activeQuestionsByCategory}
             answeredQuestions={answeredQuestions.map(a => a.questionId)}
             onSelectQuestion={selectQuestion}
             currentTeam={teams[currentTeamIdx]}
@@ -312,7 +356,7 @@ export default function Home() {
             question={currentQuestion}
             categories={filteredCategories}
             onAnswer={handleAnswer}
-            questionsLeft={QUESTIONS_PER_GAME - answeredQuestions.length - 1}
+            questionsLeft={questionsPerGame - answeredQuestions.length - 1}
             currentTeam={teams[currentTeamIdx]}
           />
         )}
