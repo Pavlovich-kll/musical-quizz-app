@@ -1,65 +1,192 @@
-import Image from "next/image";
+'use client'
+
+import { useState, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import type { Category, Question } from '@/lib/supabase/database.types'
+import GameBoard from '@/components/GameBoard'
+import QuestionCard from '@/components/QuestionCard'
+import PlayerSetup from '@/components/PlayerSetup'
+import GameOver from '@/components/GameOver'
+
+export type GameState = 'setup' | 'playing' | 'question' | 'answered' | 'gameover'
+
+const QUESTIONS_PER_GAME = 15
+
+interface AnsweredQuestion {
+  questionId: string
+  points: number
+  isCorrect: boolean
+}
 
 export default function Home() {
+  const [gameState, setGameState] = useState<GameState>('setup')
+  const [categories, setCategories] = useState<Category[]>([])
+  const [questions, setQuestions] = useState<Question[]>([])
+  const [questionsByCategory, setQuestionsByCategory] = useState<Record<string, Question[]>>({})
+  const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null)
+  const [answeredQuestions, setAnsweredQuestions] = useState<AnsweredQuestion[]>([])
+  const [score, setScore] = useState(0)
+  const [playerName, setPlayerName] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [selectedQuestions, setSelectedQuestions] = useState<Question[]>([])
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  async function loadData() {
+    const supabase = createClient()
+    const { data: cats } = await supabase.from('categories').select('*').order('name')
+    const { data: qs } = await supabase.from('questions').select('*').order('point_value')
+
+    if (cats) setCategories(cats)
+    if (qs) {
+      setQuestions(qs)
+      const grouped: Record<string, Question[]> = {}
+      for (const q of qs) {
+        if (!grouped[q.category_id]) grouped[q.category_id] = []
+        grouped[q.category_id].push(q)
+      }
+      setQuestionsByCategory(grouped)
+    }
+    setLoading(false)
+  }
+
+  function selectQuestion(question: Question) {
+    if (answeredQuestions.find(a => a.questionId === question.id)) return
+    setCurrentQuestion(question)
+    setGameState('question')
+  }
+
+  function handleAnswer(isCorrect: boolean) {
+    if (!currentQuestion) return
+    const points = isCorrect ? currentQuestion.point_value : 0
+    const newScore = score + points
+    setScore(newScore)
+    setAnsweredQuestions([...answeredQuestions, {
+      questionId: currentQuestion.id,
+      points,
+      isCorrect,
+    }])
+    setSelectedQuestions([...selectedQuestions, currentQuestion])
+    setGameState('answered')
+  }
+
+  function nextQuestion() {
+    setCurrentQuestion(null)
+    if (answeredQuestions.length >= QUESTIONS_PER_GAME) {
+      setGameState('gameover')
+    } else {
+      setGameState('playing')
+    }
+  }
+
+  function startGame(name: string) {
+    setPlayerName(name)
+    setScore(0)
+    setAnsweredQuestions([])
+    setSelectedQuestions([])
+    setCurrentQuestion(null)
+    setGameState('playing')
+  }
+
+  function restartGame() {
+    setScore(0)
+    setAnsweredQuestions([])
+    setSelectedQuestions([])
+    setCurrentQuestion(null)
+    setGameState('setup')
+    setPlayerName('')
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-2xl animate-pulse">🎵 Загрузка...</div>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+    <div className="flex flex-col min-h-screen">
+      <header className="py-4 px-6 border-b border-white/10">
+        <h1 className="text-2xl font-bold text-center bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+          🎵 Музыкальный квиз
+        </h1>
+        {playerName && gameState !== 'setup' && (
+          <div className="text-center text-sm text-white/60 mt-1">
+            Игрок: {playerName} | Счёт: <span className="text-yellow-400 font-bold">{score}</span>
+            {gameState === 'playing' && (
+              <span className="ml-3">| Вопросов: {answeredQuestions.length}/{QUESTIONS_PER_GAME}</span>
+            )}
+          </div>
+        )}
+      </header>
+
+      <main className="flex-1 p-4 md:p-6">
+        {gameState === 'setup' && (
+          <PlayerSetup onStart={startGame} categories={categories} />
+        )}
+
+        {gameState === 'playing' && (
+          <GameBoard
+            categories={categories}
+            questionsByCategory={questionsByCategory}
+            answeredQuestions={answeredQuestions.map(a => a.questionId)}
+            onSelectQuestion={selectQuestion}
+          />
+        )}
+
+        {gameState === 'question' && currentQuestion && (
+          <QuestionCard
+            question={currentQuestion}
+            categories={categories}
+            onAnswer={handleAnswer}
+            questionsLeft={QUESTIONS_PER_GAME - answeredQuestions.length - 1}
+          />
+        )}
+
+        {gameState === 'answered' && currentQuestion && (
+          <div className="animate-scale-in max-w-2xl mx-auto mt-8 text-center">
+            <div className={`p-8 rounded-2xl ${answeredQuestions[answeredQuestions.length - 1]?.isCorrect
+              ? 'bg-green-900/30 border border-green-500/30'
+              : 'bg-red-900/30 border border-red-500/30'}`}>
+              <div className="text-6xl mb-4">
+                {answeredQuestions[answeredQuestions.length - 1]?.isCorrect ? '🎉' : '😢'}
+              </div>
+              <h2 className="text-2xl font-bold mb-2">
+                {answeredQuestions[answeredQuestions.length - 1]?.isCorrect ? 'Верно!' : 'Неверно'}
+              </h2>
+              <p className="text-xl text-white/80 mb-2">
+                {currentQuestion.answer_song}
+              </p>
+              <p className="text-lg text-white/60 mb-4">
+                {currentQuestion.answer_artist}
+              </p>
+              {answeredQuestions[answeredQuestions.length - 1]?.isCorrect && (
+                <p className="text-yellow-400 text-lg font-semibold">
+                  +{currentQuestion.point_value} очков
+                </p>
+              )}
+              <button
+                onClick={nextQuestion}
+                className="mt-6 px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl font-semibold hover:from-indigo-500 hover:to-purple-500 transition-all"
+              >
+                {answeredQuestions.length >= QUESTIONS_PER_GAME ? 'Посмотреть результаты' : 'Следующий вопрос →'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {gameState === 'gameover' && (
+          <GameOver
+            score={score}
+            playerName={playerName}
+            answeredQuestions={answeredQuestions}
+            onRestart={restartGame}
+          />
+        )}
       </main>
     </div>
-  );
+  )
 }
