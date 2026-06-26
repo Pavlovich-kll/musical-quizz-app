@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import type { Category, Question } from '@/lib/supabase/database.types'
 
 interface Props {
@@ -9,6 +9,31 @@ interface Props {
   onAnswer: (isCorrect: boolean) => void
   questionsLeft: number
   currentTeam?: string
+}
+
+declare global {
+  interface Window {
+    YT: {
+      Player: new (elementId: string | HTMLElement, config: {
+        height: string | number
+        width: string | number
+        videoId: string
+        playerVars?: Record<string, string | number>
+        events?: {
+          onReady?: (e: { target: { playVideo: () => void } }) => void
+          onStateChange?: (e: { data: number }) => void
+        }
+      }) => YTPlayer
+      PlayerState: { PLAYING: number; PAUSED: number; ENDED: number }
+    }
+    onYouTubeIframeAPIReady: (() => void) | null
+  }
+}
+
+interface YTPlayer {
+  playVideo: () => void
+  pauseVideo: () => void
+  destroy: () => void
 }
 
 function getYoutubeId(url: string): string | null {
@@ -29,6 +54,10 @@ function isYoutubeUrl(url: string): boolean {
 
 export default function QuestionCard({ question, categories, onAnswer, questionsLeft, currentTeam }: Props) {
   const [showAnswer, setShowAnswer] = useState(false)
+  const [youtubeApiReady, setYoutubeApiReady] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const playerRef = useRef<YTPlayer | null>(null)
+  const playerContainerRef = useRef<HTMLDivElement>(null)
   const category = categories.find(c => c.id === question.category_id)
 
   const youtubeId = useMemo(() => {
@@ -37,8 +66,80 @@ export default function QuestionCard({ question, categories, onAnswer, questions
     return getYoutubeId(question.media_url)
   }, [question.media_url])
 
+  useEffect(() => {
+    if (!youtubeId) return
+    if (window.YT && window.YT.Player) {
+      setYoutubeApiReady(true)
+      return
+    }
+    window.onYouTubeIframeAPIReady = () => setYoutubeApiReady(true)
+    if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+      const tag = document.createElement('script')
+      tag.src = 'https://www.youtube.com/iframe_api'
+      document.body.appendChild(tag)
+    }
+    return () => {
+      window.onYouTubeIframeAPIReady = null
+    }
+  }, [youtubeId])
+
+  useEffect(() => {
+    if (!youtubeApiReady || !youtubeId || playerRef.current) return
+
+    const container = playerContainerRef.current
+    if (!container) return
+
+    container.innerHTML = ''
+
+    const player = new window.YT.Player(container, {
+      height: 0,
+      width: 0,
+      videoId: youtubeId,
+      playerVars: {
+        autoplay: 0,
+        controls: 0,
+        disablekb: 1,
+        rel: 0,
+      },
+      events: {
+        onReady: () => {},
+        onStateChange: (e: { data: number }) => {
+          if (e.data === window.YT.PlayerState.PLAYING) setIsPlaying(true)
+          else if (e.data === window.YT.PlayerState.PAUSED) setIsPlaying(false)
+          else if (e.data === window.YT.PlayerState.ENDED) setIsPlaying(false)
+        },
+      },
+    })
+    playerRef.current = player
+  }, [youtubeApiReady, youtubeId])
+
+  function togglePlay() {
+    const player = playerRef.current
+    if (!player) return
+    if (isPlaying) {
+      player.pauseVideo()
+    } else {
+      player.playVideo()
+    }
+  }
+
+  const resetPlayer = useCallback(() => {
+    if (playerRef.current) {
+      playerRef.current.destroy()
+      playerRef.current = null
+    }
+    setIsPlaying(false)
+  }, [])
+
+  useEffect(() => {
+    return () => resetPlayer()
+  }, [resetPlayer])
+
   function handleReveal() {
     setShowAnswer(true)
+    if (playerRef.current && isPlaying) {
+      playerRef.current.pauseVideo()
+    }
   }
 
   return (
@@ -102,17 +203,16 @@ export default function QuestionCard({ question, categories, onAnswer, questions
         </div>
 
         {question.media_url && youtubeId && (
-          <div className="mb-6 rounded-xl overflow-hidden relative bg-gray-900">
-            <iframe
-              key={question.id}
-              width="100%"
-              height="200"
-              src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&controls=1&modestbranding=1&rel=0&origin=https://musical-quizz-app.vercel.app`}
-              allow="autoplay; encrypted-media"
-              allowFullScreen
-              className="rounded-xl"
-            />
-            <div className="absolute inset-0 bg-gradient-to-b from-gray-900/90 via-gray-900/50 to-transparent pointer-events-none rounded-xl" />
+          <div className="mb-6 rounded-xl bg-gray-900 overflow-hidden">
+            <div className="relative h-16 flex items-center justify-center">
+              <div ref={playerContainerRef} className="absolute -left-[9999px]" />
+              <button
+                onClick={togglePlay}
+                className="flex items-center gap-3 px-6 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all text-sm font-semibold"
+              >
+                {isPlaying ? '⏸ Пауза' : '▶ Включить отрывок'}
+              </button>
+            </div>
           </div>
         )}
 
