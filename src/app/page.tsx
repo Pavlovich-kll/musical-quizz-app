@@ -28,6 +28,7 @@ export default function Home() {
   const [score, setScore] = useState(0)
   const [playerName, setPlayerName] = useState('')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [selectedQuestions, setSelectedQuestions] = useState<Question[]>([])
 
   useEffect(() => {
@@ -35,21 +36,31 @@ export default function Home() {
   }, [])
 
   async function loadData() {
-    const supabase = createClient()
-    const { data: cats } = await supabase.from('categories').select('*').order('name')
-    const { data: qs } = await supabase.from('questions').select('*').order('point_value')
+    try {
+      const supabase = createClient()
+      const { data: cats, error: catsErr } = await supabase.from('categories').select('*').order('name')
+      const { data: qs, error: qsErr } = await supabase.from('questions').select('*').order('point_value')
 
-    if (cats) setCategories(cats)
-    if (qs) {
-      setQuestions(qs)
-      const grouped: Record<string, Question[]> = {}
-      for (const q of qs) {
-        if (!grouped[q.category_id]) grouped[q.category_id] = []
-        grouped[q.category_id].push(q)
+      if (catsErr) throw catsErr
+      if (qsErr) throw qsErr
+
+      if (cats) setCategories(cats)
+      if (qs) {
+        setQuestions(qs)
+        const grouped: Record<string, Question[]> = {}
+        for (const q of qs) {
+          if (!grouped[q.category_id]) grouped[q.category_id] = []
+          grouped[q.category_id].push(q)
+        }
+        setQuestionsByCategory(grouped)
       }
-      setQuestionsByCategory(grouped)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Неизвестная ошибка'
+      console.error('Ошибка загрузки данных:', message)
+      setError(message)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   function selectQuestion(question: Question) {
@@ -103,6 +114,27 @@ export default function Home() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-2xl animate-pulse">🎵 Загрузка...</div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen p-4">
+        <div className="bg-red-900/30 border border-red-500/30 rounded-2xl p-8 max-w-md text-center">
+          <div className="text-5xl mb-4">⚠️</div>
+          <h2 className="text-xl font-bold mb-2">Ошибка загрузки</h2>
+          <p className="text-white/60 text-sm mb-4 break-all">{error}</p>
+          <p className="text-white/40 text-xs mb-4">
+            Проверьте, что переменные NEXT_PUBLIC_SUPABASE_URL и NEXT_PUBLIC_SUPABASE_ANON_KEY заданы
+          </p>
+          <button
+            onClick={() => { setError(null); setLoading(true); loadData() }}
+            className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl font-semibold hover:from-indigo-500 hover:to-purple-500 transition-all"
+          >
+            Повторить
+          </button>
+        </div>
       </div>
     )
   }
