@@ -55,9 +55,18 @@ export default function Home() {
         setQuestionsByCategory(grouped)
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Неизвестная ошибка'
-      console.error('Ошибка загрузки данных:', message)
+      let message = 'Неизвестная ошибка'
+      if (err instanceof Error) {
+        message = `${err.name}: ${err.message}`
+        if (err.stack) console.error('Stack:', err.stack)
+      } else if (typeof err === 'string') {
+        message = err
+      } else if (err && typeof err === 'object') {
+        message = JSON.stringify(err, Object.getOwnPropertyNames(err))
+      }
+      console.error('Ошибка загрузки данных (сырая):', err)
       setError(message)
+      setLoading(false)
     } finally {
       setLoading(false)
     }
